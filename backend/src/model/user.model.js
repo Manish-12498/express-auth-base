@@ -1,5 +1,4 @@
 const { Schema, model } = require("mongoose");
-const bcrypt = require("bcryptjs");
 
 const userSchema = new Schema(
   {
@@ -39,25 +38,25 @@ const userSchema = new Schema(
   }
 );
 
-// Hash password before saving
-userSchema.pre("save", async function (next) {
-  if (!this.isModified("password")) return next(); // only hash if changed
-  this.password = await bcrypt.hash(this.password, 10);
-  next();
-});
+// // Hash password before saving
+// userSchema.pre("save", async function (next) {
+//   if (!this.isModified("password")) return next(); // only hash if changed
+//   this.password = await bcrypt.hash(this.password, 10);
+//   next();
+// });
 
-// Compare entered password with hashed password
-userSchema.methods.matchPassword = async function (enteredPassword) {
-  return await bcrypt.compare(enteredPassword, this.password);
-};
+// // Compare entered password with hashed password
+// userSchema.methods.matchPassword = async function (enteredPassword) {
+//   return await bcrypt.compare(enteredPassword, this.password);
+// };
 
-// Hide password and __v from JSON responses
-userSchema.methods.toJSON = function () {
-  const user = this.toObject();
-  delete user.password;
-  delete user.__v;
-  return user;
-};
+// // Hide password and __v from JSON responses
+// userSchema.methods.toJSON = function () {
+//   const user = this.toObject();
+//   delete user.password;
+//   delete user.__v;
+//   return user;
+// };
 
 const User = model("User", userSchema);
 

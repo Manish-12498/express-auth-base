@@ -1,6 +1,16 @@
+const { getRedisClient } = require("../config/config.REDIS");
 const TryCatch = require("../middlewares/tryCatch");
 const sanitize= require("mongo-sanitize");
 const registerSchema = require("../config/config.zod");
+const userModel = require ("../model/user.model");
+const bcrypt = require("bcrypt");
+const crypto= require ("crypto");
+const sendMail = require("../config/config.emailSend");
+const {getVerifyEmailHtml} = require("../config/config.email.hmtl.templet");
+const RATE_LIMIT_MAX = 5;
+const RATE_LIMIT_WINDOW = 60 * 15;
+
+
 const register = TryCatch(async(req,res)=>{
     const sanitizeBody = sanitize(req.body);
     const validation = registerSchema.safeParse(sanitizeBody);
@@ -11,6 +21,51 @@ const register = TryCatch(async(req,res)=>{
         });
     }
     const {username,email,password}= validation.data;
+
+    //adding rate limit 
+    const redis = getRedisClient();
+
+    const rateLimitKey = `register-rate-limit:${req.ip}:${email}`;
+    const attempts = await redis.incr(rateLimitKey);
+    if (attempts === 1) {
+        // First attempt — set expiry window
+        await redis.expire(rateLimitKey, RATE_LIMIT_WINDOW);
+    }
+
+    if (attempts > RATE_LIMIT_MAX) {
+        const ttl = await redis.ttl(rateLimitKey);
+        return res.status(429).json({
+            message: `Too many attempts. Try again in ${ttl} seconds.`,
+        });
+    }
+
+    const existingUser = await userModel.findOne({email});
+    if(existingUser){
+        return res.status(400).json({
+            message:"User already exist"
+        });
+    }
+
+    const hashPassword = await bcrypt.hash(password,12);
+    const verifyToken = crypto.randomBytes(32).toString("hex");
+    const verifyKey = `verify:${verifyToken}`;
+
+    const dataStore = JSON.stringify({
+        username,
+        email,
+        password:hashPassword
+    });
+
+    // going to store in radis for 5 min  
+
+    await redis.set(verifyKey,dataStore,{EX:300});
+
+    const subject = "verify your email for Account Creation";
+    const html=getVerifyEmailHtml({email,token:verifyToken});
+    await sendMail(email,subject,html);
+
+    
+    // const user = await userModel.create({});
     return res.status(200).json({
         username,
         email,

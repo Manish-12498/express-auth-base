@@ -1,15 +1,32 @@
-const { REDIS_URL } = require("./config")
+const { REDIS_URL } = require("./config");
 const redis = require("redis");
 
-const connectTORedis = async () => {
+let redisClient = null;
+
+const connectToRedis = async () => {
     if (!REDIS_URL) {
-        console.log("Missing redis url");
+        console.error("Missing REDIS_URL — cannot start without Redis");
         process.exit(1);
     }
-    const redisClient = redis.createClient({ url: REDIS_URL });
-    redisClient.connect().then(() => {
-        console.log("Redis connected Successfully");
-    }).catch(console.error);
-}
 
-module.exports = connectTORedis;
+    redisClient = redis.createClient({ url: REDIS_URL });
+
+    
+    redisClient.on("error", (err) => {
+        console.error("Redis client error:", err);
+    });
+
+    
+    await redisClient.connect();
+    console.log("Redis connected successfully");
+};
+
+
+const getRedisClient = () => {
+    if (!redisClient) {
+        throw new Error("Redis client not initialised — call connectToRedis() first");
+    }
+    return redisClient;
+};
+
+module.exports = { connectToRedis, getRedisClient };
