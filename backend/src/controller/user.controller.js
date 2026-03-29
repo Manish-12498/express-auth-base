@@ -139,17 +139,17 @@ const loginUser = TryCatch( async (req,res)=>{
     const User = await userModel.findOne({email}).select("+password");
     if(!User){
         return res.status(400).json({
-            message:"Invalid credintail"
+            message:"Invalid credentials"
         });
     }
     const compairPassword = await bcrypt.compare(password,User.password);
     if(!compairPassword){
         return res.status(400).json({
-            message:"Invalid credintail"
+            message:"Invalid credentials"
         });
     }
 
-    const otp = Math.floor(100000+Math.random()*900000).toString();
+    const otp = (crypto.randomInt(900000)+100000).toString();
     const otpKey = `otp:${email}`;
 
     await redis.set(otpKey,otp,{EX:300,})
@@ -160,7 +160,7 @@ const loginUser = TryCatch( async (req,res)=>{
 
     await redis.del(rateLimitKey);    
     res.json({
-        message:"OTP send to email. Vaild for 5 min"
+        message:"OTP send to email. Valid for 5 min"
     });
     
 
@@ -177,15 +177,10 @@ const verifyOTP = TryCatch( async (req,res)=>{
     const otpKey = `otp:${email}`;
     const storedOTPString = await redis.get(otpKey);
 
-    if(!storedOTPString){
+    
+    if(!storedOTPString ||storedOTPString!== otp){
         return res.status(400).json({
-            message:"OTP is expired"
-        });
-    }
-
-    if(storedOTPString!== otp){
-        return res.status(400).json({
-            message : "Invaild OTP"
+            message : "Invaild or expired OTP "
         });
     }
 

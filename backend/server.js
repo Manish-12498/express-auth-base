@@ -6,10 +6,12 @@ const connectDB = require("./src/config/config.DB");
 
 const app = require("./src/app");
 
-const port = config.PORT ||3000  ;
-connectToRedis();
-connectDB();
+const port = config.PORT || 3000;
+(async () => {
+    connectToRedis();
+    connectDB();
 
-app.listen(port,()=>{
-    console.log(`Server is running on port ${port}`);
-});
+    app.listen(port, () => {
+        console.log(`Server is running on port ${port}`);
+    });
+})

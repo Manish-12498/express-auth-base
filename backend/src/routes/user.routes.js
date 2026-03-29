@@ -8,8 +8,8 @@ const {
 
 } = require("../controller/user.controller")
 
-router.get("/register",register);
-router.post("/verify/:token",verifyUser);
+router.post("/register",register);
+router.get("/verify/:token",verifyUser);
 router.post("/login",loginUser);
 router.post("/verify",verifyOTP);
 
