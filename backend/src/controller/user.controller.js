@@ -4,6 +4,7 @@ const sanitize= require("mongo-sanitize");
 const {registerSchema,loginSchema} = require("../config/config.zod");
 const userModel = require ("../model/user.model");
 const bcrypt = require("bcrypt");
+const generateToken = require("../config/config.generateJWT");
 const crypto= require ("crypto");
 const sendMail = require("../config/config.emailSend");
 const {getVerifyEmailHtml,getOtpHtml} = require("../config/config.email.hmtl.templet");
@@ -165,8 +166,44 @@ const loginUser = TryCatch( async (req,res)=>{
 
 });
 
+const verifyOTP = TryCatch( async (req,res)=>{
+    const redis = getRedisClient();
+    const {email,otp} = req.body;
+    if(!email || !otp){
+        return res.status(400).json({
+            message:"please provide all detail"
+        });
+    }
+    const otpKey = `otp:${email}`;
+    const storedOTPString = await redis.get(otpKey);
+
+    if(!storedOTPString){
+        return res.status(400).json({
+            message:"OTP is expired"
+        });
+    }
+
+    if(storedOTPString!== otp){
+        return res.status(400).json({
+            message : "Invaild OTP"
+        });
+    }
+
+    await redis.del(otpKey);
+    const user = await userModel.findOne({email});
+
+    // const tokenData = 
+    await generateToken(user._id,res);
+    res.status(200).json({
+        message:`Welcome ${user.username}`,
+        user,
+    });
+
+});
+
 module.exports ={
     register,
     verifyUser ,
     loginUser,
+    verifyOTP,
 }
