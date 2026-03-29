@@ -1,12 +1,12 @@
 const { getRedisClient } = require("../config/config.REDIS");
 const TryCatch = require("../middlewares/tryCatch");
 const sanitize= require("mongo-sanitize");
-const registerSchema = require("../config/config.zod");
+const {registerSchema,loginSchema} = require("../config/config.zod");
 const userModel = require ("../model/user.model");
 const bcrypt = require("bcrypt");
 const crypto= require ("crypto");
 const sendMail = require("../config/config.emailSend");
-const {getVerifyEmailHtml} = require("../config/config.email.hmtl.templet");
+const {getVerifyEmailHtml,getOtpHtml} = require("../config/config.email.hmtl.templet");
 const RATE_LIMIT_MAX = 5;
 const RATE_LIMIT_WINDOW = 60 * 15;
 
@@ -108,7 +108,65 @@ const verifyUser = TryCatch(async (req,res)=>{
     });
 });
 
+const loginUser = TryCatch( async (req,res)=>{
+    const sanitizeBody = sanitize(req.body);
+    const validation = loginSchema.safeParse(sanitizeBody);
+    if(!validation.success){
+        const ZodError = validation.error.flatten().fieldErrors; 
+        return res.status(400).json({
+            message:ZodError
+        });
+    }
+    const {email,password}= validation.data;
+
+    //adding rate limit 
+    const redis = getRedisClient();
+
+    const rateLimitKey = `login-rate-limit:${req.ip}:${email}`;
+    const attempts = await redis.incr(rateLimitKey);
+    if (attempts === 1) {
+        // First attempt — set expiry window
+        await redis.expire(rateLimitKey, RATE_LIMIT_WINDOW);
+    }
+
+    if (attempts > RATE_LIMIT_MAX) {
+        const ttl = await redis.ttl(rateLimitKey);
+        return res.status(429).json({
+            message: `Too many attempts. Try again in ${ttl} seconds.`,
+        });
+    }
+    const User = await userModel.findOne({email}).select("+password");
+    if(!User){
+        return res.status(400).json({
+            message:"Invalid credintail"
+        });
+    }
+    const compairPassword = await bcrypt.compare(password,User.password);
+    if(!compairPassword){
+        return res.status(400).json({
+            message:"Invalid credintail"
+        });
+    }
+
+    const otp = Math.floor(100000+Math.random()*900000).toString();
+    const otpKey = `otp:${email}`;
+
+    await redis.set(otpKey,otp,{EX:300,})
+
+    const subject = "OTP for verification ";
+    const html = getOtpHtml({email,otp});
+    await sendMail(email,subject ,html);
+
+    await redis.del(rateLimitKey);    
+    res.json({
+        message:"OTP send to email. Vaild for 5 min"
+    });
+    
+
+});
+
 module.exports ={
     register,
     verifyUser ,
+    loginUser,
 }

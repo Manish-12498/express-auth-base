@@ -17,4 +17,20 @@ const registerSchema = zod.object({
         .regex(/[0-9]/, "Password must contain at least one number"),
 });
 
-module.exports = registerSchema;
+const loginSchema = zod.object({
+
+    email: zod.string()
+        .email("Invalid email format")
+        .toLowerCase(),
+
+    password: zod.string()
+        .min(3, "Password must be at least 8 characters")
+        .max(64, "Password cannot exceed 64 characters")
+        .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+        .regex(/[0-9]/, "Password must contain at least one number"),
+});
+
+module.exports = {
+    registerSchema,
+    loginSchema
+};
