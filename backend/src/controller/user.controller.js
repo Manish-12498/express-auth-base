@@ -67,14 +67,48 @@ const register = TryCatch(async(req,res)=>{
     
     // const user = await userModel.create({});
     return res.status(200).json({
-        username,
-        email,
-        password
+        message:"Email is send to your registered email"
     });
 
 });
 
+const verifyUser = TryCatch(async (req,res)=>{
+    const {token} = req.params;
+    if(!token){
+        return res.status(400).json({
+            message:"Verification token required"
+        });
+    }
+    const verifyKey = `verify:${token}`;
+    const redis = getRedisClient();
+    const userDataJSON = await redis.get(verifyKey);
+    if(!userDataJSON){
+        return res.status(400).json({
+            message:"verification link is expired"
+        });
+    }
+    const userData = JSON.parse(userDataJSON);
+    
+    
+    const existingUser = await userModel.findOne({email:userData.email});
+    if(existingUser){
+        return res.status(400).json({
+            message:"User already exist"
+        });
+    }
+
+    const newUser = await userModel.create({
+        username:userData.username,
+        email:userData.email,
+        password:userData.password
+    });
+
+    return res.status(201).json({
+        message:"Email verified Successfully! Your account has been created"
+    });
+});
+
 module.exports ={
     register,
-    
+    verifyUser ,
 }
